@@ -4,8 +4,11 @@ set_xmakever("2.9.4")
 -- include local folders
 includes("extern/commonlibsse")
 
+-- add custom package repository
+add_repositories("xre https://github.com/shad0wshayd3/custom-xrepo")
+
 -- set project
-set_project("BakaAutoMapFOV")
+set_project("BakaWorldMapFOV")
 set_version("1.0.0")
 set_license("GPL-3.0")
 
@@ -26,15 +29,21 @@ add_rules("plugin.vsxmake.autoupdate")
 -- compile for ae
 set_config("skyrim_ae", true)
 
+-- require package dependencies
+add_requires("figcone", {configs = {use_ini = true}})
+
 -- setup targets
-target("BakaAutoMapFOV")
+target("BakaWorldMapFOV")
     -- bind local dependencies
     add_deps("commonlibsse")
 
+    -- bind package dependencies
+    add_packages("figcone")
+
     -- add commonlibsse plugin
     add_rules("commonlibsse.plugin", {
-        name = "BakaAutoMapFOV",
-        author = "shad0wshayd3-TES5"
+        name = "BakaWorldMapFOV",
+        author = "shad0wshayd3"
     })
 
     -- add source files

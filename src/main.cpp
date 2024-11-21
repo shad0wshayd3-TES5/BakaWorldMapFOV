@@ -1,38 +1,19 @@
-struct Config
+namespace Config
 {
-public:
-	struct SectionGeneral
+	namespace General
 	{
-	public:
-		float fWorldMapFOV{ 80.0f };
-	};
-
-	// members
-	SectionGeneral General;
-
-public:
-	static Config* GetSingleton()
-	{
-		static Config singleton;
-		return std::addressof(singleton);
+		static REX::INI::F32 fWorldMapFOV{ "General", "fWorldMapFOV", 80.0f };
 	}
 
 	static void Load()
 	{
-		const auto plugin = SKSE::PluginVersionData::GetSingleton();
-		auto config = std::filesystem::current_path() /=
-			std::format("Data/SKSE/plugins/{}.ini"sv, plugin->GetPluginName());
-		try
-		{
-			auto reader = figcone::ConfigReader();
-			*GetSingleton() = reader.readIniFile<Config>(config.make_preferred());
-		}
-		catch (const std::exception& e)
-		{
-			SKSE::log::error("{}"sv, e.what());
-		}
+		const auto ini = REX::INI::SettingStore::GetSingleton();
+		ini->Init(
+			"Data/SKSE/plugins/BakaWorldMapFOV.ini",
+			"Data/SKSE/plugins/BakaWorldMapFOVCustom.ini");
+		ini->Load();
 	}
-};
+}
 
 class MenuOpenCloseHandler :
 	public RE::BSTEventSink<RE::MenuOpenCloseEvent>
@@ -63,7 +44,7 @@ public:
 			{
 				if (a_event->opening)
 				{
-					auto fWorldMapFOV = Config::GetSingleton()->General.fWorldMapFOV;
+					auto fWorldMapFOV = Config::General::fWorldMapFOV.GetValue();
 					defaultWorldFOV = PlayerCamera->worldFOV;
 					defaultFirstFOV = PlayerCamera->firstPersonFOV;
 					PlayerCamera->worldFOV = fWorldMapFOV;
@@ -104,7 +85,6 @@ namespace
 SKSEPluginLoad(const SKSE::LoadInterface* a_SKSE)
 {
 	SKSE::Init(a_SKSE, true);
-
 	SKSE::GetMessagingInterface()->RegisterListener(MessageCallback);
 
 	return true;

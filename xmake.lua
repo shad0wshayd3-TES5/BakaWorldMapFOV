@@ -1,36 +1,22 @@
--- set minimum xmake version
-set_xmakever("2.8.2")
-
--- includes
+-- include subprojects
 includes("lib/commonlibsse")
 
--- set project
+-- set project constants
 set_project("BakaWorldMapFOV")
-set_version("2.0.0")
+set_version("3.0.0")
 set_license("GPL-3.0")
-
--- set defaults
 set_languages("c++23")
 set_warnings("allextra")
 
--- add rules
+-- add common rules
 add_rules("mode.debug", "mode.releasedbg")
 add_rules("plugin.vsxmake.autoupdate")
 
--- set policies
-set_policy("build.optimization.lto", true)
-set_policy("package.requires_lock", true)
-
 -- set configs
-set_config("rex_ini", true)
-set_config("skyrim_ae", true)
+set_config("commonlib_ini", true)
 
--- targets
+-- define targets
 target("BakaWorldMapFOV")
-    -- add dependencies to target
-    add_deps("commonlibsse")
-
-    -- add commonlibsse plugin
     add_rules("commonlibsse.plugin", {
         name = "BakaWorldMapFOV",
         author = "shad0wshayd3"

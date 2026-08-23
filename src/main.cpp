@@ -2,7 +2,13 @@ namespace Config
 {
 	namespace General
 	{
-		static REX::INI::F32 fWorldMapFOV{ "General", "fWorldMapFOV", 80.0f };
+		static REX::INI::F32 fWorldMapFOV{ "General"sv, "fWorldMapFOV"sv, 80.0f };
+	}
+
+	namespace Runtime
+	{
+		static float                        fWorldMapFOV{ 80.0f };
+		static std::map<std::string, float> mWorldspaces;
 	}
 
 	static void Load()
@@ -12,48 +18,71 @@ namespace Config
 			"Data/SKSE/plugins/BakaWorldMapFOV.ini",
 			"Data/SKSE/plugins/BakaWorldMapFOVCustom.ini");
 		ini->Load();
+
+		Runtime::fWorldMapFOV = General::fWorldMapFOV;
+		if (auto data = RE::TESDataHandler::GetSingleton())
+		{
+			for (auto world : data->formArrays[71])
+			{
+				auto editorID = world->GetFormEditorID();
+				auto fileBase = std::format("Data/SKSE/plugins/BakaWorldMapFOV.{}.ini"sv, editorID);
+
+				if (!std::filesystem::exists(fileBase))
+					continue;
+
+				ini->Init(fileBase.c_str(), "");
+				ini->Load();
+
+				Runtime::mWorldspaces.emplace(editorID, General::fWorldMapFOV);
+			}
+		}
 	}
 }
 
 class MenuOpenCloseHandler :
-	public RE::BSTEventSink<RE::MenuOpenCloseEvent>
+	public RE::BSTEventSink<RE::MenuOpenCloseEvent>,
+	public REX::TSingleton<MenuOpenCloseHandler>
 {
 public:
 	static void Install()
 	{
-		Config::Load();
-
-		if (auto UI = RE::UI::GetSingleton())
-		{
-			UI->AddEventSink<RE::MenuOpenCloseEvent>(MenuOpenCloseHandler::GetSingleton());
-			SKSE::log::debug("Added MenuOpenCloseEvent handler");
-		}
-	}
-
-	static MenuOpenCloseHandler* GetSingleton()
-	{
-		static MenuOpenCloseHandler singleton;
-		return std::addressof(singleton);
+		if (auto ui = RE::UI::GetSingleton())
+			ui->AddEventSink<RE::MenuOpenCloseEvent>(MenuOpenCloseHandler::GetSingleton());
 	}
 
 	RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
 	{
-		if (a_event && a_event->menuName == "MapMenu")
+		if (a_event && a_event->menuName == "MapMenu"sv)
 		{
-			if (auto PlayerCamera = RE::PlayerCamera::GetSingleton())
+			if (auto camera = RE::PlayerCamera::GetSingleton())
 			{
 				if (a_event->opening)
 				{
-					auto fWorldMapFOV = Config::General::fWorldMapFOV.GetValue();
-					defaultWorldFOV = PlayerCamera->worldFOV;
-					defaultFirstFOV = PlayerCamera->firstPersonFOV;
-					PlayerCamera->worldFOV = fWorldMapFOV;
-					PlayerCamera->firstPersonFOV = fWorldMapFOV;
+					auto fWorldMapFOV = Config::Runtime::fWorldMapFOV;
+					if (auto ui = RE::UI::GetSingleton())
+					{
+						if (auto map = ui->GetMenu<RE::MapMenu>())
+						{
+							if (map->worldSpace)
+							{
+								auto editorID = map->worldSpace->GetFormEditorID();
+								if (Config::Runtime::mWorldspaces.contains(editorID))
+								{
+									fWorldMapFOV = Config::Runtime::mWorldspaces[editorID];
+								}
+							}
+						}
+					}
+
+					defaultWorldFOV = camera->worldFOV;
+					defaultFirstFOV = camera->firstPersonFOV;
+					camera->worldFOV = fWorldMapFOV;
+					camera->firstPersonFOV = fWorldMapFOV;
 				}
 				else
 				{
-					PlayerCamera->worldFOV = defaultWorldFOV;
-					PlayerCamera->firstPersonFOV = defaultFirstFOV;
+					camera->worldFOV = defaultWorldFOV;
+					camera->firstPersonFOV = defaultFirstFOV;
 				}
 			}
 		}
@@ -72,20 +101,20 @@ namespace
 		switch (a_msg->type)
 		{
 		case SKSE::MessagingInterface::kPostLoad:
-		{
 			MenuOpenCloseHandler::Install();
 			break;
-		}
+		case SKSE::MessagingInterface::kDataLoaded:
+			Config::Load();
+			break;
 		default:
 			break;
 		}
 	}
 }
 
-SKSEPluginLoad(const SKSE::LoadInterface* a_SKSE)
+SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* a_skse)
 {
-	SKSE::Init(a_SKSE, true);
+	SKSE::Init(a_skse);
 	SKSE::GetMessagingInterface()->RegisterListener(MessageCallback);
-
 	return true;
 }

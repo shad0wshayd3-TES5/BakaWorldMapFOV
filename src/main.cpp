@@ -1,43 +1,4 @@
-namespace Config
-{
-	namespace General
-	{
-		static REX::INI::F32 fWorldMapFOV{ "General"sv, "fWorldMapFOV"sv, 80.0f };
-	}
-
-	namespace Runtime
-	{
-		static float                        fWorldMapFOV{ 80.0f };
-		static std::map<std::string, float> mWorldspaces;
-	}
-
-	static void Load()
-	{
-		const auto ini = REX::INI::SettingStore::GetSingleton();
-		ini->Init(
-			"Data/SKSE/plugins/BakaWorldMapFOV.ini",
-			"Data/SKSE/plugins/BakaWorldMapFOVCustom.ini");
-		ini->Load();
-
-		Runtime::fWorldMapFOV = General::fWorldMapFOV;
-		if (auto data = RE::TESDataHandler::GetSingleton())
-		{
-			for (auto world : data->formArrays[71])
-			{
-				auto editorID = world->GetFormEditorID();
-				auto fileBase = std::format("Data/SKSE/plugins/BakaWorldMapFOV.{}.ini"sv, editorID);
-
-				if (!std::filesystem::exists(fileBase))
-					continue;
-
-				ini->Init(fileBase.c_str(), "");
-				ini->Load();
-
-				Runtime::mWorldspaces.emplace(editorID, General::fWorldMapFOV);
-			}
-		}
-	}
-}
+#include "Settings.h"
 
 class MenuOpenCloseHandler :
 	public RE::BSTEventSink<RE::MenuOpenCloseEvent>,
@@ -47,7 +8,7 @@ public:
 	static void Install()
 	{
 		if (auto ui = RE::UI::GetSingleton())
-			ui->AddEventSink<RE::MenuOpenCloseEvent>(MenuOpenCloseHandler::GetSingleton());
+			ui->AddEventSink<RE::MenuOpenCloseEvent>(GetSingleton());
 	}
 
 	RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
@@ -58,26 +19,25 @@ public:
 			{
 				if (a_event->opening)
 				{
-					auto fWorldMapFOV = Config::Runtime::fWorldMapFOV;
+					auto worldspaceFOV = Settings::Runtime.defaultFOV;
+
 					if (auto ui = RE::UI::GetSingleton())
 					{
-						if (auto map = ui->GetMenu<RE::MapMenu>())
+						if (auto mapMenu = ui->GetMenu<RE::MapMenu>();
+							mapMenu && mapMenu->worldSpace)
 						{
-							if (map->worldSpace)
+							auto iter = Settings::Runtime.worldSpaces.find(mapMenu->worldSpace->editorID.c_str());
+							if (iter != Settings::Runtime.worldSpaces.end())
 							{
-								auto editorID = map->worldSpace->GetFormEditorID();
-								if (Config::Runtime::mWorldspaces.contains(editorID))
-								{
-									fWorldMapFOV = Config::Runtime::mWorldspaces[editorID];
-								}
+								worldspaceFOV = iter->second;
 							}
 						}
 					}
 
 					defaultWorldFOV = camera->worldFOV;
 					defaultFirstFOV = camera->firstPersonFOV;
-					camera->worldFOV = fWorldMapFOV;
-					camera->firstPersonFOV = fWorldMapFOV;
+					camera->worldFOV = worldspaceFOV;
+					camera->firstPersonFOV = worldspaceFOV;
 				}
 				else
 				{
@@ -104,7 +64,7 @@ namespace
 			MenuOpenCloseHandler::Install();
 			break;
 		case SKSE::MessagingInterface::kDataLoaded:
-			Config::Load();
+			Settings::Load();
 			break;
 		default:
 			break;
